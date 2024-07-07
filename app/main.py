@@ -6,7 +6,6 @@ from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 import torchvision
-from huggingface_hub import hf_hub_download
 import json
 import io
 import base64
@@ -22,55 +21,31 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 import matplotlib
 matplotlib.use('Agg')
 
-# Hugging Face details
-HF_REPO_ID = "EswarKarthikk/Object_detection_eswar"
-HF_FILENAME = "faster_rcnn_state.pth"
-HF_TOKEN = os.getenv("HF_TOKEN")
-
 app = FastAPI()
 
-def download_model_from_hf():
-    try:
-        model_path = hf_hub_download(
-            repo_id=HF_REPO_ID,
-            filename=HF_FILENAME,
-            token=HF_TOKEN
-        )
-        config_path = hf_hub_download(
-            repo_id=HF_REPO_ID,
-            filename="config.json",
-            token=HF_TOKEN
-        )
-        return model_path, config_path
-    except Exception as e:
-        print(f"Error downloading from Hugging Face: {e}")
-        return None, None
+# Paths to local model and config files
+MODEL_PATH = "faster_rcnn_state.pth"
+CONFIG_PATH = "config.json"
 
-# Download model and config
-model_path, config_path = download_model_from_hf()
+# Load config
+with open(CONFIG_PATH, 'r') as f:
+    config = json.load(f)
 
-if model_path and config_path:
-    # Load config
-    with open(config_path, 'r') as f:
-        config = json.load(f)
+# Create model
+model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=False, pretrained_backbone=False)
+model.roi_heads.box_predictor = FastRCNNPredictor(model.roi_heads.box_predictor.cls_score.in_features, config['num_labels'])
 
-    # Create model
-    model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=False, pretrained_backbone=False)
-    model.roi_heads.box_predictor = FastRCNNPredictor(model.roi_heads.box_predictor.cls_score.in_features, config['num_labels'])
+# Load weights
+model.load_state_dict(torch.load(MODEL_PATH, map_location='cpu'))
+model.eval()
 
-    # Load weights
-    model.load_state_dict(torch.load(model_path, map_location='cpu'))
-    model.eval()
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = model.to(device)
-else:
-    print("Failed to load model and config")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = model.to(device)
 
 # Dictionary for class labels (adjust based on your model's classes)
-classes = {1:'aeroplane', 2:'bicycle', 3:'bird', 4:'boat', 5:'bottle', 6:'bus', 7:'car', 8:'cat', 9:'chair', 10:'cow',
-           11:'diningtable', 12:'dog', 13:'horse', 14:'motorbike', 15:'person', 16:'pottedplant', 17:'sheep', 18:'sofa', 
-           19:'train', 20:'tvmonitor'}
+classes = {1: 'aeroplane', 2: 'bicycle', 3: 'bird', 4: 'boat', 5: 'bottle', 6: 'bus', 7: 'car', 8: 'cat', 9: 'chair', 10: 'cow',
+           11: 'diningtable', 12: 'dog', 13: 'horse', 14: 'motorbike', 15: 'person', 16: 'pottedplant', 17: 'sheep', 18: 'sofa', 
+           19: 'train', 20: 'tvmonitor'}
 
 def obj_detector(image_file):
     img = np.array(Image.open(io.BytesIO(image_file)).convert("RGB"))
