@@ -1,9 +1,10 @@
 fastapi
-opencv
-uvicorn
 torch
 torchvision
 numpy
-pillow
+opencv-python-headless
+huggingface-hub
+Pillow
 matplotlib
-huggingface_hub
+uvicorn
+python-multipart
