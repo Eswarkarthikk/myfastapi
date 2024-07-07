@@ -23,17 +23,15 @@ matplotlib.use('Agg')
 
 app = FastAPI()
 
-# Paths to local model and config files
+# Paths to local model file
 MODEL_PATH = "faster_rcnn_state.pth"
-CONFIG_PATH = "config.json"
 
-# Load config
-with open(CONFIG_PATH, 'r') as f:
-    config = json.load(f)
+# Number of labels (directly hardcoded)
+num_labels = 20
 
 # Create model
 model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=False, pretrained_backbone=False)
-model.roi_heads.box_predictor = FastRCNNPredictor(model.roi_heads.box_predictor.cls_score.in_features, config['num_labels'])
+model.roi_heads.box_predictor = FastRCNNPredictor(model.roi_heads.box_predictor.cls_score.in_features, num_labels)
 
 # Load weights
 model.load_state_dict(torch.load(MODEL_PATH, map_location='cpu'))
