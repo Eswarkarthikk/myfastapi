@@ -6,6 +6,7 @@ from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 import torchvision
+from huggingface_hub import hf_hub_download
 import json
 import io
 import base64
@@ -21,29 +22,48 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 import matplotlib
 matplotlib.use('Agg')
 
+# Hugging Face details
+HF_REPO_ID = "EswarKarthikk/Object_detection_eswar"
+HF_FILENAME = "faster_rcnn_state.pth"
+HF_TOKEN = "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"
+
 app = FastAPI()
 
-# Paths to local model file
-MODEL_PATH = "faster_rcnn_state.pth"
+def download_model_from_hf():
+    try:
+        model_path = hf_hub_download(
+            repo_id=HF_REPO_ID,
+            filename=HF_FILENAME,
+            token=HF_TOKEN
+        )
+        return model_path
+    except Exception as e:
+        print(f"Error downloading from Hugging Face: {e}")
+        return None
 
-# Number of labels (directly hardcoded)
-num_labels = 20
+# Download model
+model_path = download_model_from_hf()
 
-# Create model
-model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=False, pretrained_backbone=False)
-model.roi_heads.box_predictor = FastRCNNPredictor(model.roi_heads.box_predictor.cls_score.in_features, num_labels)
+if model_path:
+    # Create model
+    model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=False, pretrained_backbone=False)
+    # Update the box predictor to match the number of classes in the pretrained weights (21)
+    num_classes = 21  # 20 classes + background
+    in_features = model.roi_heads.box_predictor.cls_score.in_features
+    model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
 
-# Load weights
-model.load_state_dict(torch.load(MODEL_PATH, map_location='cpu'))
-model.eval()
+    # Load weights
+    model.load_state_dict(torch.load(model_path, map_location='cpu'))
+    model.eval()
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = model.to(device)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
+else:
+    print("Failed to load model")
 
 # Dictionary for class labels (adjust based on your model's classes)
-classes = {1: 'aeroplane', 2: 'bicycle', 3: 'bird', 4: 'boat', 5: 'bottle', 6: 'bus', 7: 'car', 8: 'cat', 9: 'chair', 10: 'cow',
-           11: 'diningtable', 12: 'dog', 13: 'horse', 14: 'motorbike', 15: 'person', 16: 'pottedplant', 17: 'sheep', 18: 'sofa', 
-           19: 'train', 20: 'tvmonitor'}
+classes = {0: 'background', 1: 'aeroplane', 2: 'bicycle', 3: 'bird', 4: 'boat', 5: 'bottle', 6: 'bus', 7: 'car', 8: 'cat', 9: 'chair', 10: 'cow',
+           11: 'diningtable', 12: 'dog', 13: 'horse', 14: 'motorbike', 15: 'person', 16: 'pottedplant', 17: 'sheep', 18: 'sofa', 19: 'train', 20: 'tvmonitor'}
 
 def obj_detector(image_file):
     img = np.array(Image.open(io.BytesIO(image_file)).convert("RGB"))
