@@ -12,6 +12,5 @@
       "dest": "app/main:app"
     }
   ],
-  "installCommand": "pip install -r requirements.txt",
-  "buildCommand": "echo 'No build step required'"
+  "installCommand": "pip install -r requirements.txt"
 }
